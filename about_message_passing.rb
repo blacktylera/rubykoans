@@ -1,185 +1,79 @@
 require File.expand_path(File.dirname(__FILE__) + '/neo')
 
-class AboutMessagePassing < Neo::Koan
-
-  class MessageCatcher
-    def caught?
-      true
-    end
-  end
-
-  def test_methods_can_be_called_directly
-    mc = MessageCatcher.new
-
-    assert mc.caught?
-  end
-
-  def test_methods_can_be_invoked_by_sending_the_message
-    mc = MessageCatcher.new
-
-    assert mc.send(:caught?)
-  end
-
-  def test_methods_can_be_invoked_more_dynamically
-    mc = MessageCatcher.new
-
-    assert mc.send("caught?")
-    assert mc.send("caught" + __ )    # What do you need to add to the first string?
-    assert mc.send("CAUGHT?".____ )      # What would you need to do to the string?
-  end
-
-  def test_send_with_underscores_will_also_send_messages
-    mc = MessageCatcher.new
-
-    assert_equal __, mc.__send__(:caught?)
-
-    # THINK ABOUT IT:
-    #
-    # Why does Ruby provide both send and __send__ ?
-  end
-
-  def test_classes_can_be_asked_if_they_know_how_to_respond
-    mc = MessageCatcher.new
-
-    assert_equal __, mc.respond_to?(:caught?)
-    assert_equal __, mc.respond_to?(:does_not_exist)
-  end
-
-  # ------------------------------------------------------------------
-
-  class MessageCatcher
-    def add_a_payload(*args)
-      args
-    end
-  end
-
-  def test_sending_a_message_with_arguments
-    mc = MessageCatcher.new
-
-    assert_equal __, mc.add_a_payload
-    assert_equal __, mc.send(:add_a_payload)
-
-    assert_equal __, mc.add_a_payload(3, 4, nil, 6)
-    assert_equal __, mc.send(:add_a_payload, 3, 4, nil, 6)
-  end
-
-  # NOTE:
-  #
-  # Both obj.msg and obj.send(:msg) sends the message named :msg to
-  # the object. We use "send" when the name of the message can vary
-  # dynamically (e.g. calculated at run time), but by far the most
-  # common way of sending a message is just to say: obj.msg.
-
-  # ------------------------------------------------------------------
-
-  class TypicalObject
-  end
-
-  def test_sending_undefined_messages_to_a_typical_object_results_in_errors
-    typical = TypicalObject.new
-
-    exception = assert_raise(___) do
-      typical.foobar
-    end
-    assert_match(/foobar/, exception.message)
-  end
-
-  def test_calling_method_missing_causes_the_no_method_error
-    typical = TypicalObject.new
-
-    exception = assert_raise(___) do
-      typical.method_missing(:foobar)
-    end
-    assert_match(/foobar/, exception.message)
-
-    # THINK ABOUT IT:
-    #
-    # If the method :method_missing causes the NoMethodError, then
-    # what would happen if we redefine method_missing?
-    #
-    # NOTE:
-    #
-    # In Ruby 1.8 the method_missing method is public and can be
-    # called as shown above. However, in Ruby 1.9 (and later versions)
-    # the method_missing method is private. We explicitly made it
-    # public in the testing framework so this example works in both
-    # versions of Ruby. Just keep in mind you can't call
-    # method_missing like that after Ruby 1.9 normally.
-    #
-    # Thanks.  We now return you to your regularly scheduled Ruby
-    # Koans.
-  end
-
-  # ------------------------------------------------------------------
-
-  class AllMessageCatcher
-    def method_missing(method_name, *args, &block)
-      "Someone called #{method_name} with <#{args.join(", ")}>"
-    end
-  end
-
-  def test_all_messages_are_caught
-    catcher = AllMessageCatcher.new
-
-    assert_equal __, catcher.foobar
-    assert_equal __, catcher.foobaz(1)
-    assert_equal __, catcher.sum(1,2,3,4,5,6)
-  end
-
-  def test_catching_messages_makes_respond_to_lie
-    catcher = AllMessageCatcher.new
-
-    assert_nothing_raised do
-      catcher.any_method
-    end
-    assert_equal __, catcher.respond_to?(:any_method)
-  end
-
-  # ------------------------------------------------------------------
-
-  class WellBehavedFooCatcher
-    def method_missing(method_name, *args, &block)
-      if method_name.to_s[0,3] == "foo"
-        "Foo to you too"
-      else
-        super(method_name, *args, &block)
+class AboutScope < Neo::Koan
+  module Jims
+    class Dog
+      def identify
+        :jims_dog
       end
     end
   end
 
-  def test_foo_method_are_caught
-    catcher = WellBehavedFooCatcher.new
-
-    assert_equal __, catcher.foo_bar
-    assert_equal __, catcher.foo_baz
-  end
-
-  def test_non_foo_messages_are_treated_normally
-    catcher = WellBehavedFooCatcher.new
-
-    assert_raise(___) do
-      catcher.normal_undefined_method
-    end
-  end
-
-  # ------------------------------------------------------------------
-
-  # (note: just reopening class from above)
-  class WellBehavedFooCatcher
-    def respond_to?(method_name)
-      if method_name.to_s[0,3] == "foo"
-        true
-      else
-        super(method_name)
+  module Joes
+    class Dog
+      def identify
+        :joes_dog
       end
     end
   end
 
-  def test_explicitly_implementing_respond_to_lets_objects_tell_the_truth
-    catcher = WellBehavedFooCatcher.new
-
-    assert_equal __, catcher.respond_to?(:foo_bar)
-    assert_equal __, catcher.respond_to?(:something_else)
+  def test_dog_is_not_available_in_the_current_scope
+    assert_raise(NameError) do
+      Dog.new
+    end
   end
 
+  def test_you_can_reference_nested_classes_using_the_scope_operator
+    fido = Jims::Dog.new
+    rover = Joes::Dog.new
+    assert_equal :jims_dog, fido.identify
+    assert_equal :joes_dog, rover.identify
+
+    assert_equal true, fido.class != rover.class #is this true because they are in different namespaces?
+    assert_equal true, Jims::Dog != Joes::Dog #or is it because they have different object ids?
+  end
+
+  # ------------------------------------------------------------------
+
+  class String
+  end
+
+  def test_bare_bones_class_names_assume_the_current_scope
+    assert_equal true, AboutScope::String == String
+  end
+
+  def test_nested_string_is_not_the_same_as_the_system_string
+    assert_equal false, String == "HI".class
+  end #why is this false?? irb returns true for this...
+
+  def test_use_the_prefix_scope_operator_to_force_the_global_scope
+    assert_equal true, ::String == "HI".class
+  end #why is this true when ::String is Class and the other is String???
+
+  # ------------------------------------------------------------------
+
+  PI = 3.1416
+
+  def test_constants_are_defined_with_an_initial_uppercase_letter
+    assert_equal PI, PI
+  end
+
+  # ------------------------------------------------------------------
+
+  MyString = ::String
+
+  def test_class_names_are_just_constants
+    assert_equal true, MyString == ::String
+    assert_equal true, MyString == "HI".class
+  end
+
+  def test_constants_can_be_looked_up_explicitly
+    assert_equal true, PI == AboutScope.const_get("PI")
+    assert_equal true, MyString == AboutScope.const_get("MyString")
+  end
+
+  def test_you_can_get_a_list_of_constants_for_any_class_or_module
+    assert_equal [:Dog], Jims.constants
+    assert Object.constants.size > 118 
+  end
 end
